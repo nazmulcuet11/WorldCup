@@ -60,12 +60,15 @@ class ViewController: UIViewController {
         let fetchRequest: NSFetchRequest<Team> = Team.fetchRequest()
         fetchRequest.sortDescriptors = [zoneSort, scoreSort, nameSort]
 
-        return NSFetchedResultsController(
+        let fetchedResultsController = NSFetchedResultsController(
             fetchRequest: fetchRequest,
             managedObjectContext: coreDataStack.managedContext,
             sectionNameKeyPath: #keyPath(Team.qualifyingZone),
             cacheName: "WORLD_CUP_FETCH_ALL_TEAM_CACHE"
         )
+        fetchedResultsController.delegate = self
+
+        return fetchedResultsController
     }()
     
     // MARK: - IBOutlets
@@ -139,7 +142,6 @@ extension ViewController: UITableViewDelegate {
         let team = fetchedResultsController.object(at: indexPath)
         team.wins += 1
         coreDataStack.saveContext()
-        tableView.reloadData()
     }
 }
 
@@ -186,4 +188,53 @@ extension ViewController {
         }
     }
     // swiftlint:enable force_unwrapping force_cast force_try
+}
+
+// MARK: - NSFetchedResultsControllerDelegate
+extension ViewController: NSFetchedResultsControllerDelegate {
+    func controllerWillChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        tableView.beginUpdates()
+    }
+
+    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
+                    didChange anObject: Any,
+                    at indexPath: IndexPath?,
+                    for type: NSFetchedResultsChangeType,
+                    newIndexPath: IndexPath?) {
+
+        switch type {
+        case .insert:
+            tableView.insertRows(at: [indexPath!], with: .automatic)
+        case .delete:
+            tableView.deleteRows(at: [indexPath!], with: .automatic)
+        case .move:
+            tableView.deleteRows(at: [indexPath!], with: .automatic)
+            tableView.insertRows(at: [newIndexPath!], with: .automatic)
+        case .update:
+            let cell = tableView.cellForRow(at: indexPath!) as! TeamCell
+            configure(cell: cell, for: indexPath!)
+        @unknown default:
+            break
+        }
+    }
+
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        tableView.endUpdates()
+    }
+
+    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>,
+                    didChange sectionInfo: NSFetchedResultsSectionInfo,
+                    atSectionIndex sectionIndex: Int,
+                    for type: NSFetchedResultsChangeType) {
+
+        let indexSet = IndexSet(integer: sectionIndex)
+        switch type {
+        case .insert:
+            tableView.insertSections(indexSet, with: .automatic)
+        case .delete:
+            tableView.deleteSections(indexSet, with: .automatic)
+        default:
+            break
+        }
+    }
 }
