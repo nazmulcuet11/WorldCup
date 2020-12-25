@@ -37,6 +37,36 @@ class ViewController: UIViewController {
     // MARK: - Properties
     private let teamCellIdentifier = "teamCellReuseIdentifier"
     lazy var  coreDataStack = CoreDataStack(modelName: "WorldCup")
+    lazy var fetchedResultsController: NSFetchedResultsController<Team> = {
+        let compareSelector = #selector(NSString.localizedStandardCompare(_:))
+
+        let zoneSort = NSSortDescriptor(
+            key: #keyPath(Team.qualifyingZone),
+            ascending: true,
+            selector: compareSelector
+        )
+
+        let scoreSort = NSSortDescriptor(
+            key: #keyPath(Team.wins),
+            ascending: false
+        )
+
+        let nameSort = NSSortDescriptor(
+            key: #keyPath(Team.teamName),
+            ascending: true,
+            selector: compareSelector
+        )
+
+        let fetchRequest: NSFetchRequest<Team> = Team.fetchRequest()
+        fetchRequest.sortDescriptors = [zoneSort, scoreSort, nameSort]
+
+        return NSFetchedResultsController(
+            fetchRequest: fetchRequest,
+            managedObjectContext: coreDataStack.managedContext,
+            sectionNameKeyPath: #keyPath(Team.qualifyingZone),
+            cacheName: nil
+        )
+    }()
     
     // MARK: - IBOutlets
     @IBOutlet weak var tableView: UITableView!
@@ -47,30 +77,48 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         
         importJSONSeedDataIfNeeded()
+
+        do {
+            try fetchedResultsController.performFetch()
+        } catch let error as NSError {
+            print("Fetching error: \(error), userInfo: \(error.userInfo)")
+        }
     }
 }
 
 // MARK: - Internal
 extension ViewController {
     func configure(cell: UITableViewCell, for indexPath: IndexPath) {
-        guard let cell = cell as? TeamCell else {
+        guard let cell = cell as? TeamCell
+        else {
             return
         }
-        
-        cell.flagImageView.backgroundColor = .blue
-        cell.teamLabel.text = "Team Name"
-        cell.scoreLabel.text = "Wins: 0"
+
+        let team = fetchedResultsController.object(at: indexPath)
+        cell.teamLabel.text = team.teamName
+        cell.scoreLabel.text = "Wins: \(team.wins)"
+
+        if let imageName = team.imageName {
+            cell.flagImageView.image = UIImage(named: imageName)
+        } else {
+            cell.flagImageView.image = nil
+        }
     }
 }
 
 // MARK: - UITableViewDataSource
 extension ViewController: UITableViewDataSource {
     func numberOfSections(in tableView: UITableView) -> Int {
-        1
+        return fetchedResultsController.sections?.count ?? 0
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        20
+        guard let sectionInfo = fetchedResultsController.sections?[section]
+        else {
+            return 0
+        }
+
+        return sectionInfo.numberOfObjects
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -78,11 +126,20 @@ extension ViewController: UITableViewDataSource {
         configure(cell: cell, for: indexPath)
         return cell
     }
+
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        let sectionInfo = fetchedResultsController.sections?[section]
+        return sectionInfo?.name
+    }
 }
 
 // MARK: - UITableViewDelegate
 extension ViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let team = fetchedResultsController.object(at: indexPath)
+        team.wins += 1
+        coreDataStack.saveContext()
+        tableView.reloadData()
     }
 }
 
