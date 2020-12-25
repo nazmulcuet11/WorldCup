@@ -78,7 +78,9 @@ class ViewController: UIViewController {
     // MARK: - View Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+
+        addButton.isEnabled = true
+
         importJSONSeedDataIfNeeded()
 
         do {
@@ -86,6 +88,57 @@ class ViewController: UIViewController {
         } catch let error as NSError {
             print("Fetching error: \(error), userInfo: \(error.userInfo)")
         }
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        if motion == .motionShake {
+            addButton.isEnabled = true
+        }
+    }
+}
+
+// MARK: - IBActions
+extension ViewController {
+    @IBAction func addTeam(_ sender: UIButton) {
+        let alertController = UIAlertController(
+            title: "Secret Team",
+            message: "Add a new team",
+            preferredStyle: .alert
+        )
+
+        alertController.addTextField {
+            (textField) in
+            textField.placeholder = "Team Name"
+        }
+
+        alertController.addTextField {
+            (textField) in
+            textField.placeholder = "Qualifying Zone"
+        }
+
+        let saveAction = UIAlertAction(title: "Save", style: .default, handler: {
+            [unowned self] (action) in
+
+            guard let nameTextField = alertController.textFields?.first,
+                  let zoneTextField = alertController.textFields?.last
+            else {
+                return
+            }
+
+            let team = Team(context: coreDataStack.managedContext)
+
+            team.teamName = nameTextField.text
+            team.qualifyingZone = zoneTextField.text
+            team.imageName = "wenderland-flag"
+
+            coreDataStack.saveContext()
+        })
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
+
+        alertController.addAction(saveAction)
+        alertController.addAction(cancelAction)
+
+        present(alertController, animated: true, completion: nil)
     }
 }
 
@@ -204,15 +257,30 @@ extension ViewController: NSFetchedResultsControllerDelegate {
 
         switch type {
         case .insert:
-            tableView.insertRows(at: [indexPath!], with: .automatic)
+            if let newIndexPath = newIndexPath {
+                tableView.insertRows(at: [newIndexPath], with: .automatic)
+            }
         case .delete:
-            tableView.deleteRows(at: [indexPath!], with: .automatic)
+            if let indexPath = indexPath {
+                tableView.deleteRows(at: [indexPath], with: .automatic)
+            }
         case .move:
-            tableView.deleteRows(at: [indexPath!], with: .automatic)
-            tableView.insertRows(at: [newIndexPath!], with: .automatic)
+            if let indexPath = indexPath,
+               let newIndexPath = newIndexPath {
+                // there is bug in this delegate which calls move instead of update
+                // when there is a single row in a section
+                if indexPath == newIndexPath {
+                    self.controller(controller, didChange: anObject, at: indexPath, for: .update, newIndexPath: newIndexPath)
+                } else {
+                    tableView.deleteRows(at: [indexPath], with: .automatic)
+                    tableView.insertRows(at: [newIndexPath], with: .automatic)
+                }
+            }
         case .update:
-            let cell = tableView.cellForRow(at: indexPath!) as! TeamCell
-            configure(cell: cell, for: indexPath!)
+            if  let indexPath = indexPath,
+                let cell = tableView.cellForRow(at: indexPath) as? TeamCell {
+                configure(cell: cell, for: indexPath)
+            }
         @unknown default:
             break
         }
