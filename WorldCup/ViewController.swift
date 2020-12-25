@@ -64,7 +64,7 @@ class ViewController: UIViewController {
             fetchRequest: fetchRequest,
             managedObjectContext: coreDataStack.managedContext,
             sectionNameKeyPath: #keyPath(Team.qualifyingZone),
-            cacheName: nil
+            cacheName: "WORLD_CUP_FETCH_ALL_TEAM_CACHE"
         )
     }()
     
